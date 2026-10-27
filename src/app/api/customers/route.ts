@@ -96,3 +96,21 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// DELETE /api/customers - Delete all customers (cascades to invoices & reminders)
+export async function DELETE() {
+  try {
+    const { count } = await prisma.customer.deleteMany({});
+    return NextResponse.json({
+      success: true,
+      message: `Deleted ${count} customers and associated records`,
+      deletedCount: count,
+    });
+  } catch (error: any) {
+    console.error('Error deleting all customers:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete all customers' },
+      { status: 500 }
+    );
+  }
+}

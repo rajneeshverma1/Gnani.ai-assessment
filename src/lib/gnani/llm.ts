@@ -4,7 +4,7 @@
 import { EvonIntent, EvonIntentSchema } from '../validations';
 import { parseSpokenNumber, resolveRelativeDate, extractPhoneNumber } from './nlp';
 
-export const EVON_SYSTEM_PROMPT = `You are Vyapar Voice, an assistant for Indian small businesses. Convert the user's spoken command into exactly one JSON object. Allowed actions: - create_invoice - add_customer - mark_paid - query_status - schedule_reminder - unknown Return only this JSON schema: { "action": "create_invoice | add_customer | mark_paid | query_status | schedule_reminder | unknown", "customer_name": "string | null", "phone": "string | null", "amount": "number | null", "currency": "INR", "due_date": "YYYY-MM-DD | null", "reminder_date": "YYYY-MM-DD | null", "language": "hi-IN | en-IN | hinglish", "confidence": 0.0, "missing_fields": ["string"] } Rules: - Today's date is provided in the input. - Resolve relative dates such as "kal", "Friday", "next week", and "agle mahine" into ISO dates. - Convert spoken numbers such as "do hazaar paanch sau" into numeric values. - If action is create_invoice, customer_name and amount are required. - If action is add_customer, customer_name is required. - If action is mark_paid or query_status, customer_name is required. - If action is schedule_reminder, customer_name and reminder_date are required. - If required information is missing, set action to "unknown" and list missing fields. - Never invent IDs, invoice numbers, or data not present in the transcript. - Return JSON only. No markdown, no explanation, no code fences.`;
+export const EVON_SYSTEM_PROMPT = `You are Vyapar Voice, an assistant for Indian small businesses. Convert the user's spoken command into exactly one JSON object. Allowed actions: - create_invoice - add_customer - mark_paid - query_status - schedule_reminder - plan_day - business_summary - unknown Return only this JSON schema: { "action": "create_invoice | add_customer | mark_paid | query_status | schedule_reminder | plan_day | business_summary | unknown", "customer_name": "string | null", "phone": "string | null", "amount": "number | null", "currency": "INR", "due_date": "YYYY-MM-DD | null", "reminder_date": "YYYY-MM-DD | null", "language": "hi-IN | en-IN | hinglish", "confidence": 0.0, "missing_fields": ["string"] } Rules: - Today's date is provided in the input. - Resolve relative dates such as "kal", "Friday", "next week", and "agle mahine" into ISO dates. - Convert spoken numbers such as "do hazaar paanch sau" into numeric values. - If action is create_invoice, customer_name and amount are required. - If action is add_customer, customer_name is required. - If action is mark_paid or query_status, customer_name is required. - If action is schedule_reminder, customer_name and reminder_date are required. - If the user asks to plan their day (e.g., "मुझे आज का काम प्लान करने में मदद करो", "aaj ka plan kya hai", "help me plan today's work"), set action to "plan_day". - If the user asks for a business summary or overall dues, set action to "business_summary". - If required information is missing, set action to "unknown" and list missing fields. - Never invent IDs, invoice numbers, or data not present in the transcript. - Return JSON only. No markdown, no explanation, no code fences.`;
 
 interface LlmResult {
   intent: EvonIntent;
@@ -101,6 +101,27 @@ export async function extractIntentWithEvon(
 
   // 2. Classify Action & Extract Parameters (Specific actions tested first)
   if (
+    lower.includes('plan karne') ||
+    lower.includes('kaam plan') ||
+    lower.includes('aaj ka plan') ||
+    lower.includes('aaj kya karna') ||
+    lower.includes('plan my day') ||
+    lower.includes('plan today') ||
+    lower.includes('help me plan') ||
+    lower.includes('plan work') ||
+    lower.includes('आज का काम प्लान') ||
+    lower.includes('काम प्लान करने')
+  ) {
+    action = 'plan_day';
+  } else if (
+    lower.includes('summary batao') ||
+    lower.includes('business summary') ||
+    lower.includes('kul kitna baaki') ||
+    lower.includes('total dues') ||
+    lower.includes('overall status')
+  ) {
+    action = 'business_summary';
+  } else if (
     lower.includes('paid mark') ||
     lower.includes('paid karo') ||
     lower.includes('mark paid') ||

@@ -337,6 +337,91 @@ export async function processVoiceCommand(options: {
         break;
       }
 
+      case 'plan_day': {
+        const pendingInvoices = await prisma.invoice.findMany({
+          where: { status: 'pending' },
+          include: { customer: true },
+          orderBy: { due_date: 'asc' },
+        });
+
+        const overdueInvoices = await prisma.invoice.findMany({
+          where: {
+            status: 'pending',
+            due_date: { lt: new Date() },
+          },
+          include: { customer: true },
+        });
+
+        const scheduledReminders = await prisma.reminder.findMany({
+          where: { status: 'scheduled' },
+          include: { invoice: { include: { customer: true } } },
+          orderBy: { remind_at: 'asc' },
+          take: 5,
+        });
+
+        const totalPendingAmount = pendingInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
+        const topPending = pendingInvoices[0];
+
+        mutationResult = {
+          planType: 'daily_work_plan',
+          totalPendingInvoices: pendingInvoices.length,
+          overdueCount: overdueInvoices.length,
+          totalPendingAmount,
+          topPriorityCustomer: topPending?.customer?.name || null,
+          topPriorityAmount: topPending ? Number(topPending.amount) : 0,
+          scheduledRemindersCount: scheduledReminders.length,
+          actionItems: [
+            topPending
+              ? `Priority 1: Call ${topPending.customer.name} for ₹${Number(topPending.amount).toLocaleString('en-IN')}`
+              : 'All customer invoices are cleared!',
+            overdueInvoices.length > 0
+              ? `Priority 2: Review ${overdueInvoices.length} overdue invoice(s)`
+              : 'No overdue invoices today',
+            scheduledReminders.length > 0
+              ? `Priority 3: ${scheduledReminders.length} reminder(s) scheduled for follow-up`
+              : 'No pending reminders scheduled',
+          ],
+        };
+
+        if (language === 'en-IN') {
+          if (pendingInvoices.length === 0) {
+            replyText = 'Great job! All invoices are paid. No pending dues to collect today.';
+          } else {
+            replyText = `You have ${pendingInvoices.length} pending bills worth ₹${totalPendingAmount}. Follow up with ${topPending?.customer?.name || 'customers'} first.`;
+          }
+        } else {
+          if (pendingInvoices.length === 0) {
+            replyText = 'Badhai ho! Sabhi invoices clear hain. Aaj koi pending payment nahi hai.';
+          } else {
+            replyText = `Aaj aapke ${pendingInvoices.length} bills pending hain kul ₹${totalPendingAmount} ke. ${topPending?.customer?.name ? topPending.customer.name + ' ko call karein.' : 'Follow-up shuru karein.'}`;
+          }
+        }
+        break;
+      }
+
+      case 'business_summary': {
+        const totalCustomers = await prisma.customer.count();
+        const pendingInvoices = await prisma.invoice.findMany({ where: { status: 'pending' } });
+        const paidInvoices = await prisma.invoice.findMany({ where: { status: 'paid' } });
+        const totalPending = pendingInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+        const totalPaid = paidInvoices.reduce((sum, inv) => sum + Number(inv.amount), 0);
+
+        mutationResult = {
+          totalCustomers,
+          pendingInvoicesCount: pendingInvoices.length,
+          paidInvoicesCount: paidInvoices.length,
+          totalPending,
+          totalPaid,
+        };
+
+        if (language === 'en-IN') {
+          replyText = `Total ${totalCustomers} customers. ₹${totalPending} pending and ₹${totalPaid} collected so far.`;
+        } else {
+          replyText = `Kul ${totalCustomers} customers hain. ₹${totalPending} baaki hain aur ₹${totalPaid} collect ho chuke hain.`;
+        }
+        break;
+      }
+
       case 'unknown':
       default: {
         actionStatus = 'clarification_needed';

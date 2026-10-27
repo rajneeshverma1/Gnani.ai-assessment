@@ -6,6 +6,8 @@ export const SupportedActionSchema = z.enum([
   'mark_paid',
   'query_status',
   'schedule_reminder',
+  'plan_day',
+  'business_summary',
   'unknown',
 ]);
 

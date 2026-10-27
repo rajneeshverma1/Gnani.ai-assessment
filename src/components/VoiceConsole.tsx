@@ -27,6 +27,12 @@ type PipelineStep = 'idle' | 'recording' | 'stt' | 'llm' | 'db' | 'tts' | 'done'
 
 const SAMPLE_PROMPTS = [
   {
+    title: 'Daily Work Planner',
+    text: 'मुझे आज का काम प्लान करने में मदद करो',
+    tag: 'Hindi',
+    badge: 'plan_day',
+  },
+  {
     title: 'Create Invoice',
     text: 'Ravi Kumar ko 2500 ka invoice banao Friday tak',
     tag: 'Hindi / Hinglish',
@@ -37,6 +43,12 @@ const SAMPLE_PROMPTS = [
     text: 'Sunita Sharma ka invoice paid mark karo',
     tag: 'Hinglish',
     badge: 'mark_paid',
+  },
+  {
+    title: 'Business Summary',
+    text: 'Aaj ka business summary batao',
+    tag: 'Hinglish',
+    badge: 'business_summary',
   },
   {
     title: 'Add Customer',
@@ -50,18 +62,6 @@ const SAMPLE_PROMPTS = [
     tag: 'Hindi',
     badge: 'query_status',
   },
-  {
-    title: 'Set Reminder',
-    text: 'Ravi Kumar ko Friday ko reminder set karo',
-    tag: 'Hinglish',
-    badge: 'schedule_reminder',
-  },
-  {
-    title: 'Clarification',
-    text: 'Ravi Kumar ko invoice banao',
-    tag: 'Missing Amount',
-    badge: 'unknown',
-  },
 ];
 
 export default function VoiceConsole({ language, onActionComplete }: VoiceConsoleProps) {
@@ -69,6 +69,7 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [manualText, setManualText] = useState('');
+  const [liveTranscript, setLiveTranscript] = useState('');
   const [autoPlayAudio, setAutoPlayAudio] = useState(true);
   const [copiedJson, setCopiedJson] = useState(false);
 
@@ -91,6 +92,8 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
 
   // Audio recording refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const liveTranscriptRef = useRef<string>('');
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -134,11 +137,47 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
     animFrameRef.current = requestAnimationFrame(drawWaveform);
   };
 
-  // Start browser audio recording
+  // Start browser audio recording + real-time live speech dictation
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
+      setLiveTranscript('');
+      liveTranscriptRef.current = '';
+
+      // Initialize Web Speech API for real-time live text typing as user speaks
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.continuous = true;
+          recognition.interimResults = true;
+          recognition.lang = language === 'en-IN' ? 'en-IN' : 'hi-IN';
+
+          recognition.onresult = (event: any) => {
+            let transcriptText = '';
+            for (let i = 0; i < event.results.length; i++) {
+              transcriptText += event.results[i][0].transcript;
+            }
+            if (transcriptText.trim()) {
+              setManualText(transcriptText);
+              setLiveTranscript(transcriptText);
+              liveTranscriptRef.current = transcriptText;
+            }
+          };
+
+          recognition.onerror = (e: any) => {
+            console.warn('SpeechRecognition warning:', e.error);
+          };
+
+          recognition.start();
+          recognitionRef.current = recognition;
+        } catch (speechErr) {
+          console.warn('SpeechRecognition start failed:', speechErr);
+        }
+      }
 
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const analyser = audioCtx.createAnalyser();
@@ -167,7 +206,8 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
         if (audioContextRef.current) audioContextRef.current.close();
 
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await processAudio(audioBlob);
+        const finalLiveText = liveTranscriptRef.current.trim() || manualText.trim();
+        await processAudio(audioBlob, finalLiveText);
       };
 
       mediaRecorderRef.current = mediaRecorder;
@@ -191,6 +231,14 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
   };
 
   const stopRecording = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.warn('Error stopping speech recognition:', e);
+      }
+      recognitionRef.current = null;
+    }
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -198,13 +246,17 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
     }
   };
 
-  const processAudio = async (blob: Blob) => {
+  const processAudio = async (blob: Blob, liveText?: string) => {
     setPipelineStep('stt');
     const reader = new FileReader();
     reader.readAsDataURL(blob);
     reader.onloadend = async () => {
       const base64Audio = reader.result as string;
-      await sendVoiceCommand({ audioBase64: base64Audio, mimeType: 'audio/webm' });
+      await sendVoiceCommand({
+        audioBase64: base64Audio,
+        mimeType: 'audio/webm',
+        text: liveText && liveText.length > 0 ? liveText : undefined,
+      });
     };
   };
 
@@ -377,14 +429,28 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
           </form>
         </div>
 
-        {/* Real-time Frequency Waveform Visualizer (Shown only while recording) */}
+        {/* Real-time Frequency Waveform Visualizer & Live Dictation */}
         {isRecording && (
-          <div className="rounded-xl border border-[#3a3834] bg-[#11100e] p-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-medium text-[#e66f5c] flex items-center gap-1.5 pl-2">
-              <span className="h-2 w-2 rounded-full bg-[#e66f5c] animate-ping" />
-              Recording Audio Stream (16kHz WebM)
-            </span>
-            <canvas ref={canvasRef} width={260} height={24} className="rounded" />
+          <div className="rounded-xl border border-[#3a3834] bg-[#11100e] p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] font-medium text-[#ecc06f] flex items-center gap-1.5 pl-1">
+                <span className="h-2 w-2 rounded-full bg-[#ecc06f] animate-ping" />
+                Listening live... speak in Hindi, Hinglish, or English
+              </span>
+              <canvas ref={canvasRef} width={220} height={22} className="rounded" />
+            </div>
+
+            {liveTranscript ? (
+              <div className="flex items-center gap-2 rounded-lg bg-[#1f1d1b] border border-[#594726] px-3 py-1.5 text-xs">
+                <Mic className="h-3.5 w-3.5 text-[#ecc06f] shrink-0 animate-pulse" />
+                <span className="font-mono text-[10px] text-[#ecc06f] uppercase font-bold tracking-wider">Listening:</span>
+                <span className="font-medium text-[#f6f3eb] italic truncate">&ldquo;{liveTranscript}&rdquo;</span>
+              </div>
+            ) : (
+              <p className="text-[10px] text-[#948e87] pl-1 italic">
+                Aap bolna shuru karein, yahan live words likh kar aayenge...
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -610,27 +676,67 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
                   <div className="flex items-center justify-between text-[11px] text-[#68c99e] border-b border-[#295441]/50 pb-1">
                     <span className="font-semibold flex items-center gap-1.5">
                       <Database className="h-3 w-3 text-[#68c99e]" />
-                      Ledger Mutation Result
+                      {voiceResponse.result.planType === 'daily_work_plan'
+                        ? 'AI Daily Work Plan'
+                        : voiceResponse.result.totalCustomers !== undefined
+                        ? 'Business Overview'
+                        : 'Ledger Mutation Result'}
                     </span>
                     <span className="rounded-full bg-[#172b22] px-2 py-0.5 font-mono text-[9px] text-[#68c99e] border border-[#295441]">
-                      SUCCESS
+                      READY
                     </span>
                   </div>
 
-                  <div className="mt-1.5 text-[11px] text-[#f6f3eb] space-y-0.5">
-                    {voiceResponse.result.invoiceNumber && (
-                      <p>
-                        Invoice: <span className="font-mono font-bold text-white">{voiceResponse.result.invoiceNumber}</span>
-                        {voiceResponse.result.amount && ` • Amount: ₹${voiceResponse.result.amount}`}
-                      </p>
-                    )}
-                    {voiceResponse.result.customerName && (
-                      <p>Customer: <span className="font-medium text-white">{voiceResponse.result.customerName}</span></p>
-                    )}
-                    {voiceResponse.result.status && (
-                      <p>Status: <span className="font-mono text-[#68c99e] uppercase">{voiceResponse.result.status}</span></p>
-                    )}
-                  </div>
+                  {voiceResponse.result.planType === 'daily_work_plan' ? (
+                    <div className="mt-2 space-y-2 text-[11px] text-[#f6f3eb]">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="rounded bg-[#11100e] p-1.5 border border-[#3a3834]">
+                          <span className="text-[10px] text-[#948e87] block">Pending Due</span>
+                          <span className="font-mono text-xs font-bold text-[#ecc06f]">
+                            ₹{Number(voiceResponse.result.totalPendingAmount || 0).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div className="rounded bg-[#11100e] p-1.5 border border-[#3a3834]">
+                          <span className="text-[10px] text-[#948e87] block">Pending Bills</span>
+                          <span className="font-mono text-xs font-bold text-[#f6f3eb]">
+                            {voiceResponse.result.totalPendingInvoices} bills
+                          </span>
+                        </div>
+                      </div>
+
+                      {voiceResponse.result.actionItems?.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          {voiceResponse.result.actionItems.map((item: string, i: number) => (
+                            <div key={i} className="flex items-start gap-1.5 text-[11px] text-[#c3beb7]">
+                              <CheckCircle2 className="h-3 w-3 text-[#68c99e] mt-0.5 shrink-0" />
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : voiceResponse.result.totalCustomers !== undefined ? (
+                    <div className="mt-1.5 text-[11px] text-[#f6f3eb] space-y-1">
+                      <p>Active Customers: <span className="font-bold text-white">{voiceResponse.result.totalCustomers}</span></p>
+                      <p>Pending Dues: <span className="font-mono text-[#ecc06f]">₹{Number(voiceResponse.result.totalPending || 0).toLocaleString('en-IN')}</span></p>
+                      <p>Collected: <span className="font-mono text-[#68c99e]">₹{Number(voiceResponse.result.totalPaid || 0).toLocaleString('en-IN')}</span></p>
+                    </div>
+                  ) : (
+                    <div className="mt-1.5 text-[11px] text-[#f6f3eb] space-y-0.5">
+                      {voiceResponse.result.invoiceNumber && (
+                        <p>
+                          Invoice: <span className="font-mono font-bold text-white">{voiceResponse.result.invoiceNumber}</span>
+                          {voiceResponse.result.amount && ` • Amount: ₹${voiceResponse.result.amount}`}
+                        </p>
+                      )}
+                      {voiceResponse.result.customerName && (
+                        <p>Customer: <span className="font-medium text-white">{voiceResponse.result.customerName}</span></p>
+                      )}
+                      {voiceResponse.result.status && (
+                        <p>Status: <span className="font-mono text-[#68c99e] uppercase">{voiceResponse.result.status}</span></p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -43,6 +43,8 @@ export default function CustomerTable({
 }: CustomerTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   const filteredCustomers = customers.filter((c) => {
     return (
@@ -69,6 +71,21 @@ export default function CustomerTable({
     }
   };
 
+  const handleDeleteAllCustomers = async () => {
+    try {
+      setIsDeletingAll(true);
+      const res = await fetch('/api/customers', { method: 'DELETE' });
+      if (res.ok) {
+        setShowDeleteAllConfirm(false);
+        onRefresh();
+      }
+    } catch (err) {
+      console.error('Delete all customers error:', err);
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   return (
     <div className="clean-card p-4 sm:p-5 space-y-3.5">
       {/* Table Header Controls */}
@@ -87,6 +104,18 @@ export default function CustomerTable({
         </div>
 
         <div className="flex items-center gap-2">
+          {customers.length > 0 && (
+            <button
+              onClick={() => setShowDeleteAllConfirm(true)}
+              disabled={isDeletingAll}
+              className="flex items-center gap-1.5 rounded-full border border-[#592f2a] bg-[#2e1b19]/60 px-3 py-1.5 text-xs font-semibold text-[#e66f5c] hover:bg-[#2e1b19] transition-colors disabled:opacity-40"
+              title="Delete all customers and clear directory"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete All</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenCreateModal}
             className="clean-btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold"
@@ -96,6 +125,41 @@ export default function CustomerTable({
           </button>
         </div>
       </div>
+
+      {/* Delete All Confirmation Modal */}
+      {showDeleteAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="clean-card max-w-sm w-full p-5 space-y-3 border-[#592f2a] bg-[#161513] animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-2.5 text-[#e66f5c]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2e1b19] border border-[#592f2a]">
+                <Trash2 className="h-4 w-4" />
+              </div>
+              <h4 className="font-serif text-base font-semibold text-[#f6f3eb]">Delete All Customers?</h4>
+            </div>
+            <p className="text-xs text-[#948e87]">
+              This will permanently delete all {customers.length} customer records and their linked invoices and reminders from the database. This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteAllConfirm(false)}
+                disabled={isDeletingAll}
+                className="clean-btn-secondary px-3.5 py-1.5 text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAllCustomers}
+                disabled={isDeletingAll}
+                className="flex items-center gap-1.5 rounded-full bg-[#e66f5c] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#cf5b49] transition-colors disabled:opacity-50"
+              >
+                {isDeletingAll ? 'Deleting...' : 'Yes, Delete All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search Input */}
       <div className="border-t border-[#3a3834] pt-3">
