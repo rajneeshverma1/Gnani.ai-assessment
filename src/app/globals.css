@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* TryClean.ai Warm Paper & Cream Palette */
+    --clean-paper: #161513;          /* hsl(28 9% 8%) - Deep warm paper base */
+    --clean-paper-2: #1f1d1b;        /* hsl(30 8% 11%) - Surface card */
+    --clean-paper-3: #282623;        /* hsl(32 7% 15%) - Elevated card */
+    --clean-paper-edge: #3a3834;     /* hsl(32 6% 22%) - Warm hairline border */
+    --clean-coal: #11100e;           /* hsl(28 9% 6%) - Recessed well / input */
+    --clean-coal-border: #262420;
+
+    /* Luxury Cream & Linen Typography */
+    --clean-ink: #f6f3eb;            /* hsl(40 26% 94%) - Pure luxury cream */
+    --clean-ink-2: #c3beb7;          /* hsl(32 10% 74%) - Muted warm cream */
+    --clean-ink-soft: #948e87;        /* hsl(30 8% 56%) - Soft warm text */
+    --clean-ink-placeholder: #6e6962;
+
+    /* Warm Accents (ZERO BLUE) */
+    --clean-amber: #ecc06f;          /* hsl(37 72% 68%) - Warm gold / amber */
+    --clean-amber-tint: #2e2617;
+    --clean-amber-border: #594726;
+
+    --clean-sage: #68c99e;           /* hsl(154 48% 60%) - Warm sage green */
+    --clean-sage-tint: #172b22;
+    --clean-sage-border: #295441;
+
+    --clean-coral: #e66f5c;          /* hsl(11 74% 64%) - Warm terracotta coral */
+    --clean-coral-tint: #2e1b19;
+    --clean-coral-border: #592f2a;
+
+    --clean-sand: #dcd5c9;
+    --clean-sand-tint: #28241e;
+
+    /* TryClean Luxury Lit Edges */
+    --clean-elev-1: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --clean-elev-2: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 12px 30px -10px rgba(0, 0, 0, 0.7);
+    --clean-elev-pop: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 24px 60px -15px rgba(0, 0, 0, 0.85);
+  }
+
+  body {
+    background-color: var(--clean-paper);
+    color: var(--clean-ink);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
+  }
+}
+
+/* TryClean Subtle Paper Grain */
+.paper-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' seed='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.025 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* TryClean Compact Paper Surfaces */
+.clean-surface {
+  background-color: var(--clean-paper-2);
+  border: 1px solid var(--clean-paper-edge);
+  border-radius: 14px;
+  box-shadow: var(--clean-elev-1);
+}
+
+.clean-card {
+  background-color: var(--clean-paper-2);
+  border: 1px solid var(--clean-paper-edge);
+  border-radius: 14px;
+  box-shadow: var(--clean-elev-1);
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+
+.clean-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* TryClean Iconic Pill Buttons */
+.clean-btn-primary {
+  background-color: #f6f3eb;
+  color: #161513;
+  font-weight: 600;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition: all 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.clean-btn-primary:hover {
+  background-color: #ffffff;
+  transform: translateY(-0.5px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.clean-btn-secondary {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: #f6f3eb;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  font-weight: 500;
+  transition: all 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.clean-btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* TryClean Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--clean-paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--clean-paper-edge);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #504d47;
+}
+
+/* Voice Equalizer */
+.clean-voice-eq {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 14px;
+}
+.clean-voice-eq i {
+  width: 2.5px;
+  height: 4px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: height 0.12s ease;
+}
+.clean-voice-eq.active i:nth-child(1) {
+  animation: clean-eq-bar 0.6s infinite alternate ease-in-out;
+}
+.clean-voice-eq.active i:nth-child(2) {
+  animation: clean-eq-bar 0.8s infinite alternate ease-in-out 0.15s;
+}
+.clean-voice-eq.active i:nth-child(3) {
+  animation: clean-eq-bar 0.5s infinite alternate ease-in-out 0.3s;
+}
+.clean-voice-eq.active i:nth-child(4) {
+  animation: clean-eq-bar 0.7s infinite alternate ease-in-out 0.1s;
+}
+
+@keyframes clean-eq-bar {
+  0% { height: 3px; }
+  100% { height: 13px; }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 0.2; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.animate-ripple {
+  animation: ripple 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
