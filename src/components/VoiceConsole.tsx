@@ -17,6 +17,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { playReminderChime } from '@/lib/audioTone';
 
 interface VoiceConsoleProps {
   language: 'hi-IN' | 'en-IN' | 'hinglish';
@@ -290,6 +291,14 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
 
       if (data.success) {
         onActionComplete();
+        // Ring pleasant message reminder chime
+        if (
+          data.result?.playChime ||
+          data.intent?.action === 'schedule_reminder' ||
+          data.intent?.action === 'plan_day'
+        ) {
+          playReminderChime();
+        }
         if (data.intent?.action === 'create_invoice') {
           confetti({
             particleCount: 40,
@@ -306,7 +315,7 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
             audioPlayerRef.current.src = data.replyAudioUrl;
             audioPlayerRef.current.play().catch((e) => console.log('Audio autoplay prevented:', e));
           }
-        }, 200);
+        }, 400);
       }
     } catch (err: any) {
       console.error('Command failed:', err);
@@ -704,7 +713,42 @@ export default function VoiceConsole({ language, onActionComplete }: VoiceConsol
                         </div>
                       </div>
 
-                      {voiceResponse.result.actionItems?.length > 0 && (
+                      {voiceResponse.result.timeSlots?.length > 0 ? (
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between text-[10px] uppercase font-semibold text-[#ecc06f]">
+                            <span>Time-Blocked Routine</span>
+                            <button
+                              type="button"
+                              onClick={() => playReminderChime()}
+                              className="text-[10px] text-[#948e87] hover:text-[#ecc06f] flex items-center gap-1 lowercase"
+                            >
+                              <Volume2 className="h-3 w-3 text-[#ecc06f]" />
+                              <span>play chime</span>
+                            </button>
+                          </div>
+                          {voiceResponse.result.timeSlots.slice(0, 4).map((slot: any, i: number) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between gap-2 rounded-lg bg-[#11100e] border border-[#3a3834] px-2.5 py-1 text-[11px]"
+                            >
+                              <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                                <span className="font-mono text-[10px] text-[#ecc06f] font-bold shrink-0">
+                                  {slot.time}:
+                                </span>
+                                <span className="text-[#f6f3eb] truncate">{slot.title}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => playReminderChime()}
+                                className="text-[#948e87] hover:text-[#ecc06f] p-0.5 shrink-0"
+                                title="Play Reminder Chime"
+                              >
+                                <Volume2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : voiceResponse.result.actionItems?.length > 0 && (
                         <div className="space-y-1 pt-1">
                           {voiceResponse.result.actionItems.map((item: string, i: number) => (
                             <div key={i} className="flex items-start gap-1.5 text-[11px] text-[#c3beb7]">

@@ -141,7 +141,7 @@ export default function DashboardPage() {
                 </span>
               </button>
 
-              {/* Tab 3: Reminders */}
+              {/* Tab 3: Daily Planner & Reminders */}
               <button
                 onClick={() => setActiveTab('reminders')}
                 className={`flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold transition-all ${
@@ -151,7 +151,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <Bell className="h-3.5 w-3.5" />
-                <span>Reminders</span>
+                <span>Planner & Reminders</span>
                 <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${activeTab === 'reminders' ? 'bg-[#161513]/10 text-[#161513]' : 'bg-[#2e2617] text-[#ecc06f]'}`}>
                   {reminders.length}
                 </span>

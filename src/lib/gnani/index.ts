@@ -334,6 +334,21 @@ export async function processVoiceCommand(options: {
 
         const dayWord = intent.reminder_date ? 'diye gaye date' : 'Friday';
         replyText = `${customer.name} ke liye reminder set ho gaya hai.`;
+
+        // Also add to daily schedule tasks
+        try {
+          await prisma.scheduleTask.create({
+            data: {
+              time_slot: '11:00 AM - 12:00 PM',
+              task_title: `Call ${customer.name} for Invoice ${targetInvoice.invoice_number}`,
+              category: 'calls',
+              priority: 'high',
+              remind_at: remindDate,
+            },
+          });
+        } catch (e) {
+          console.warn('Failed to mirror reminder into scheduleTask:', e);
+        }
         break;
       }
 
@@ -352,15 +367,52 @@ export async function processVoiceCommand(options: {
           include: { customer: true },
         });
 
-        const scheduledReminders = await prisma.reminder.findMany({
-          where: { status: 'scheduled' },
-          include: { invoice: { include: { customer: true } } },
-          orderBy: { remind_at: 'asc' },
-          take: 5,
-        });
-
         const totalPendingAmount = pendingInvoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
         const topPending = pendingInvoices[0];
+
+        // Default smart time-blocked daily slots for SMB merchants
+        const defaultSlots = [
+          {
+            time_slot: '10:00 AM - 11:30 AM',
+            task_title: 'Morning Invoicing & Ledger Updates',
+            category: 'billing',
+            priority: 'high',
+          },
+          {
+            time_slot: '11:30 AM - 01:00 PM',
+            task_title: topPending
+              ? `Priority Call: ${topPending.customer.name} (₹${Number(topPending.amount).toLocaleString('en-IN')})`
+              : 'Customer Payment Follow-ups',
+            category: 'calls',
+            priority: 'high',
+          },
+          {
+            time_slot: '02:00 PM - 03:30 PM',
+            task_title: 'Vendor Stock & Delivery Verification',
+            category: 'vendor',
+            priority: 'medium',
+          },
+          {
+            time_slot: '04:00 PM - 05:30 PM',
+            task_title: 'Daily Cash Register & Accounts Balancing',
+            category: 'accounts',
+            priority: 'medium',
+          },
+        ];
+
+        // Ensure tasks exist in database
+        for (const slot of defaultSlots) {
+          const existing = await prisma.scheduleTask.findFirst({
+            where: { time_slot: slot.time_slot, task_title: slot.task_title },
+          });
+          if (!existing) {
+            await prisma.scheduleTask.create({ data: slot });
+          }
+        }
+
+        const currentTasks = await prisma.scheduleTask.findMany({
+          orderBy: { created_at: 'asc' },
+        });
 
         mutationResult = {
           planType: 'daily_work_plan',
@@ -369,32 +421,29 @@ export async function processVoiceCommand(options: {
           totalPendingAmount,
           topPriorityCustomer: topPending?.customer?.name || null,
           topPriorityAmount: topPending ? Number(topPending.amount) : 0,
-          scheduledRemindersCount: scheduledReminders.length,
+          playChime: true,
+          timeSlots: currentTasks.map((t) => ({
+            id: t.id,
+            time: t.time_slot,
+            title: t.task_title,
+            category: t.category,
+            priority: t.priority,
+            completed: t.is_completed,
+          })),
           actionItems: [
             topPending
-              ? `Priority 1: Call ${topPending.customer.name} for ₹${Number(topPending.amount).toLocaleString('en-IN')}`
+              ? `Priority 11:30 AM: Call ${topPending.customer.name} for ₹${Number(topPending.amount).toLocaleString('en-IN')}`
               : 'All customer invoices are cleared!',
-            overdueInvoices.length > 0
-              ? `Priority 2: Review ${overdueInvoices.length} overdue invoice(s)`
-              : 'No overdue invoices today',
-            scheduledReminders.length > 0
-              ? `Priority 3: ${scheduledReminders.length} reminder(s) scheduled for follow-up`
-              : 'No pending reminders scheduled',
+            '10:00 AM: Start morning invoice generation and ledger sync',
+            '02:00 PM: Inspect supplier deliveries and inventory records',
+            '04:00 PM: Perform end-of-day accounts and cash reconciliations',
           ],
         };
 
         if (language === 'en-IN') {
-          if (pendingInvoices.length === 0) {
-            replyText = 'Great job! All invoices are paid. No pending dues to collect today.';
-          } else {
-            replyText = `You have ${pendingInvoices.length} pending bills worth ₹${totalPendingAmount}. Follow up with ${topPending?.customer?.name || 'customers'} first.`;
-          }
+          replyText = `Schedule ready: 10 to 11:30 AM billing, 11:30 to 1 PM payment calls, 2 to 3:30 PM vendor stock, and 4 PM accounts review.`;
         } else {
-          if (pendingInvoices.length === 0) {
-            replyText = 'Badhai ho! Sabhi invoices clear hain. Aaj koi pending payment nahi hai.';
-          } else {
-            replyText = `Aaj aapke ${pendingInvoices.length} bills pending hain kul ₹${totalPendingAmount} ke. ${topPending?.customer?.name ? topPending.customer.name + ' ko call karein.' : 'Follow-up shuru karein.'}`;
-          }
+          replyText = `Schedule ready: 10 se 11:30 AM billing, 11:30 se 1 baje payment calls, 2 se 3:30 vendor stock, aur 4 baje accounts review.`;
         }
         break;
       }
