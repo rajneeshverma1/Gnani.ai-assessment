@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  phone      String?
+  email      String?
+  language   String    @default("hi-IN")
+  created_at DateTime  @default(now()) @db.Timestamptz
+  updated_at DateTime  @default(now()) @updatedAt @db.Timestamptz
+  invoices   Invoice[]
+
+  @@map("customers")
+}
+
+model Invoice {
+  id                String     @id @default(uuid()) @db.Uuid
+  customer_id       String     @db.Uuid
+  customer          Customer   @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  invoice_number    String     @unique
+  amount            Decimal    @db.Decimal(12, 2)
+  currency          String     @default("INR")
+  due_date          DateTime?  @db.Date
+  status            String     @default("pending") // 'pending' | 'paid' | 'overdue' | 'cancelled'
+  notes             String?
+  source_transcript String?
+  created_at        DateTime   @default(now()) @db.Timestamptz
+  updated_at        DateTime   @default(now()) @updatedAt @db.Timestamptz
+  reminders         Reminder[]
+
+  @@map("invoices")
+}
+
+model Reminder {
+  id         String   @id @default(uuid()) @db.Uuid
+  invoice_id String   @db.Uuid
+  invoice    Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  remind_at  DateTime @db.Timestamptz
+  channel    String   @default("dashboard")
+  status     String   @default("scheduled")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("reminders")
+}
+
+model VoiceEvent {
+  id                String   @id @default(uuid()) @db.Uuid
+  transcript        String?
+  detected_language String?
+  parsed_intent     Json?
+  action_status     String?
+  response_text     String?
+  stt_latency_ms    Int?
+  llm_latency_ms    Int?
+  tts_latency_ms    Int?
+  error_message     String?
+  created_at        DateTime @default(now()) @db.Timestamptz
+
+  @@map("voice_events")
+}
